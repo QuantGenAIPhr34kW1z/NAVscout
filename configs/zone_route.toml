@@ -1,0 +1,33 @@
+[nav]
+home = { lat = 48.000000, lon = 2.000000, alt_m = 35.0 }
+cruise_alt_m = 35.0
+max_radius_m = 1200              # absolute hard cap
+min_gnss_sats = 9
+max_hdop = 1.6
+
+[nav.route]
+# corridor polyline; drone must remain within corridor_width_m
+corridor_width_m = 30
+waypoints = [
+  { lat = 48.000100, lon = 2.000050 },
+  { lat = 48.000600, lon = 2.001000 },
+  { lat = 48.001000, lon = 2.002000 }
+]
+
+[nav.zone]
+# zone working polygon (geofence)
+zone_polygon = [
+  { lat = 48.001100, lon = 2.002100 },
+  { lat = 48.001200, lon = 2.002400 },
+  { lat = 48.001000, lon = 2.002500 },
+  { lat = 48.000900, lon = 2.002200 }
+]
+
+[rth]
+grace_link_loss_s = 20
+battery_low_pct = 22
+thermal_soft_c = 75
+gnss_bad_fix_s = 8
+action_on_tamper = "RTH_IMMEDIATE"
+action_on_weather = "RTH"        # typically manual flag or sensor
+land_at_home = true

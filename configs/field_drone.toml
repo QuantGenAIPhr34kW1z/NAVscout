@@ -1,0 +1,116 @@
+[crypto]
+key_path = "data/device.key"
+passphrase = ""
+
+[uplink]
+enable = true
+endpoint = "tls://127.0.0.1:8443"
+pinned_server_spki_sha256 = ""
+spool_dir = "data/spool"
+spool_max_mb = 128
+
+[gnss]
+source = "nmea-file"     # nmea-serial | nmea-file
+nmea_device = "/dev/ttyUSB2"
+nmea_file = "data/sample_nmea.log"
+min_sats = 9
+max_hdop = 1.6
+max_fix_age_s = 3
+
+[nav]
+home = { lat = 48.000000, lon = 2.000000, alt_m = 35.0 }
+cruise_alt_m = 35.0
+max_radius_m = 1200.0
+
+[nav.route]
+corridor_width_m = 30.0
+waypoints = [
+  { lat = 48.000100, lon = 2.000050 },
+  { lat = 48.000600, lon = 2.001000 },
+  { lat = 48.001000, lon = 2.002000 }
+]
+
+[nav.zone]
+zone_polygon = [
+  { lat = 48.001100, lon = 2.002100 },
+  { lat = 48.001200, lon = 2.002400 },
+  { lat = 48.001000, lon = 2.002500 },
+  { lat = 48.000900, lon = 2.002200 }
+]
+
+[rth]
+grace_link_loss_s = 20
+gnss_bad_fix_s = 8
+battery_low_pct = 22
+thermal_soft_c = 75
+action_on_tamper = "RTH_IMMEDIATE"
+action_on_weather = "RTH"
+land_at_home = true
+
+[privacy]
+record_video = false
+retain_days = 3
+
+[camera]
+mode = "libcamera-jpeg"            # libcamera-jpeg | v4l2-mjpeg
+device = "/dev/video0"             # used by v4l2-mjpeg
+width = 1280
+height = 720
+fps = 30
+
+[vision]
+enable = true
+backend = "tflite"
+use_coral = false
+model_path = "models/yolo/model.tflite"
+model_path_edgetpu = "models/yolo/model_edgetpu.tflite"
+
+img_w = 640
+img_h = 640
+num_classes = 1
+class_names = ["btr"]
+
+conf_threshold = 0.35
+nms_iou_threshold = 0.45
+max_detections = 50
+output_layout = "ultralytics"
+
+[tracking]
+enable = true
+max_age_frames = 15
+min_hits = 3
+iou_match_threshold = 0.25
+max_tracks = 16
+target_class = "btr"               # class name to prioritize for "lock"
+lock_min_conf = 0.40
+
+[power]
+mode = "scan"                      # scan | track | burst
+scan_infer_every_n = 6             # run inference once every N frames when idle
+track_infer_every_n = 2            # when we have an active lock
+burst_seconds = 2.0                # burst duration after target found or reacquired
+burst_infer_every_n = 1            # full rate in burst
+idle_to_scan_seconds = 5.0         # fall back to scan after being idle
+
+[fc]
+enable = true
+autodetect = true
+
+# If autodetect=false:
+# serial_dev = "/dev/serial0"
+# baud = 57600
+
+candidate_devs = ["/dev/serial0", "/dev/ttyAMA0", "/dev/ttyS0", "/dev/ttyUSB0", "/dev/ttyACM0"]
+candidate_bauds = [57600, 115200, 230400]
+heartbeat_timeout_ms = 1500
+
+sys_id = 254
+comp_id = 190
+target_sys = 1
+target_comp = 1
+
+allow_rtl = true
+allow_hold = false
+require_heartbeat = true
+send_heartbeat_hz = 1.0
+

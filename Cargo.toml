@@ -1,0 +1,54 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/scout-cli",
+  "crates/scout-nav",
+  "crates/scout-uplink",
+  "crates/scout-crypto",
+  "crates/scout-proto",
+  "crates/scout-vision",
+  "crates/scout-fc",
+]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["NAVscout contributors"]
+
+[workspace.dependencies]
+anyhow = "1"
+thiserror = "1"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+clap = { version = "4", features = ["derive"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+time = { version = "0.3", features = ["serde", "macros"] }
+bytes = "1"
+rand = "0.8"
+zeroize = "1"
+hex = "0.4"
+
+# Crypto
+chacha20poly1305 = "0.10"
+argon2 = "0.5"
+blake3 = "1"
+
+# Async/I/O
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "fs", "io-util", "sync", "process"] }
+
+# TLS
+tokio-rustls = "0.26"
+rustls = "0.23"
+rustls-pki-types = "1"
+webpki-roots = "0.26"
+
+# GNSS serial
+tokio-serial = "5"
+
+# Vision helpers
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+
+# MAVLink
+mavlink = "0.12"
