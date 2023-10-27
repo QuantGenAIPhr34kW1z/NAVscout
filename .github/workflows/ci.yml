@@ -1,0 +1,339 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main, develop]
+  pull_request:
+    branches: [master, main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Formatting and linting
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-check-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-check-
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -W clippy::all
+
+  # Run tests
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-test-
+
+      - name: Run tests
+        run: cargo test --workspace
+
+  # Build x86_64 GNU (standard Linux)
+  build-x86_64-gnu:
+    name: Build x86_64-gnu
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-x86_64-gnu-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-x86_64-gnu-
+
+      - name: Build
+        run: cargo build -p scout-cli --release
+
+      - name: Strip binary
+        run: strip target/release/scout
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scout-x86_64-linux-gnu
+          path: target/release/scout
+
+  # Build x86_64 musl (static)
+  build-x86_64-musl:
+    name: Build x86_64-musl
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install musl-tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-x86_64-musl-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-x86_64-musl-
+
+      - name: Build
+        run: cargo build -p scout-cli --target x86_64-unknown-linux-musl --release
+
+      - name: Verify static linking
+        run: |
+          file target/x86_64-unknown-linux-musl/release/scout
+          file target/x86_64-unknown-linux-musl/release/scout | grep -q "statically linked"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scout-x86_64-linux-musl
+          path: target/x86_64-unknown-linux-musl/release/scout
+
+  # Build aarch64 musl (Raspberry Pi 5 / ARM64 static)
+  build-aarch64-musl:
+    name: Build aarch64-musl
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-musl
+
+      - name: Install cross-compiler
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu musl-tools
+
+      - name: Install musl cross toolchain
+        run: |
+          curl -sSL https://musl.cc/aarch64-linux-musl-cross.tgz | sudo tar -xz -C /opt
+          echo "/opt/aarch64-linux-musl-cross/bin" >> $GITHUB_PATH
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-aarch64-musl-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-aarch64-musl-
+
+      - name: Configure cargo for cross-compilation
+        run: |
+          mkdir -p .cargo
+          cat >> .cargo/config.toml << 'EOF'
+          [target.aarch64-unknown-linux-musl]
+          linker = "aarch64-linux-musl-gcc"
+          EOF
+
+      - name: Build
+        run: cargo build -p scout-cli --target aarch64-unknown-linux-musl --release
+
+      - name: Strip binary
+        run: aarch64-linux-musl-strip target/aarch64-unknown-linux-musl/release/scout
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scout-aarch64-linux-musl
+          path: target/aarch64-unknown-linux-musl/release/scout
+
+  # Build MIPS musl (OpenWRT big-endian)
+  build-mips-musl:
+    name: Build mips-musl (OpenWRT BE)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+
+      - name: Install musl cross toolchain
+        run: |
+          curl -sSL https://musl.cc/mips-linux-musl-cross.tgz | sudo tar -xz -C /opt
+          echo "/opt/mips-linux-musl-cross/bin" >> $GITHUB_PATH
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-mips-musl-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-mips-musl-
+
+      - name: Configure cargo for cross-compilation
+        run: |
+          mkdir -p .cargo
+          cat >> .cargo/config.toml << 'EOF'
+          [target.mips-unknown-linux-musl]
+          linker = "mips-linux-musl-gcc"
+          EOF
+
+      - name: Build
+        run: |
+          cargo +nightly build -p scout-cli \
+            --target mips-unknown-linux-musl \
+            -Z build-std=std,panic_abort \
+            --release
+
+      - name: Strip binary
+        run: mips-linux-musl-strip target/mips-unknown-linux-musl/release/scout
+
+      - name: Show binary info
+        run: |
+          file target/mips-unknown-linux-musl/release/scout
+          ls -lh target/mips-unknown-linux-musl/release/scout
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scout-mips-linux-musl
+          path: target/mips-unknown-linux-musl/release/scout
+
+  # Build MIPSEL musl (OpenWRT little-endian)
+  build-mipsel-musl:
+    name: Build mipsel-musl (OpenWRT LE)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+
+      - name: Install musl cross toolchain
+        run: |
+          curl -sSL https://musl.cc/mipsel-linux-musl-cross.tgz | sudo tar -xz -C /opt
+          echo "/opt/mipsel-linux-musl-cross/bin" >> $GITHUB_PATH
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-mipsel-musl-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-mipsel-musl-
+
+      - name: Configure cargo for cross-compilation
+        run: |
+          mkdir -p .cargo
+          cat >> .cargo/config.toml << 'EOF'
+          [target.mipsel-unknown-linux-musl]
+          linker = "mipsel-linux-musl-gcc"
+          EOF
+
+      - name: Build
+        run: |
+          cargo +nightly build -p scout-cli \
+            --target mipsel-unknown-linux-musl \
+            -Z build-std=std,panic_abort \
+            --release
+
+      - name: Strip binary
+        run: mipsel-linux-musl-strip target/mipsel-unknown-linux-musl/release/scout
+
+      - name: Show binary info
+        run: |
+          file target/mipsel-unknown-linux-musl/release/scout
+          ls -lh target/mipsel-unknown-linux-musl/release/scout
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scout-mipsel-linux-musl
+          path: target/mipsel-unknown-linux-musl/release/scout
+
+  # CI success gate
+  ci-success:
+    name: CI Success
+    needs: [check, test, build-x86_64-gnu, build-x86_64-musl, build-aarch64-musl, build-mips-musl, build-mipsel-musl]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [[ "${{ needs.check.result }}" != "success" ]] || \
+             [[ "${{ needs.test.result }}" != "success" ]] || \
+             [[ "${{ needs.build-x86_64-gnu.result }}" != "success" ]] || \
+             [[ "${{ needs.build-x86_64-musl.result }}" != "success" ]] || \
+             [[ "${{ needs.build-aarch64-musl.result }}" != "success" ]] || \
+             [[ "${{ needs.build-mips-musl.result }}" != "success" ]] || \
+             [[ "${{ needs.build-mipsel-musl.result }}" != "success" ]]; then
+            echo "One or more jobs failed"
+            exit 1
+          fi
+          echo "All jobs passed!"

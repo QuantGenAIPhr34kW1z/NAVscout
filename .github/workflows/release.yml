@@ -1,0 +1,247 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v2.5.0)'
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Build x86_64 GNU
+  build-x86_64-gnu:
+    name: Build x86_64-gnu
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build -p scout-cli --release
+      - run: strip target/release/scout
+      - name: Create tarball
+        run: |
+          mkdir -p dist
+          cp target/release/scout dist/
+          cd dist && tar -czvf scout-x86_64-linux-gnu.tar.gz scout
+          sha256sum scout-x86_64-linux-gnu.tar.gz > scout-x86_64-linux-gnu.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scout-x86_64-linux-gnu
+          path: dist/scout-x86_64-linux-gnu.tar.gz*
+
+  # Build x86_64 musl (static)
+  build-x86_64-musl:
+    name: Build x86_64-musl
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+      - run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - run: cargo build -p scout-cli --target x86_64-unknown-linux-musl --release
+      - run: strip target/x86_64-unknown-linux-musl/release/scout
+      - name: Create tarball
+        run: |
+          mkdir -p dist
+          cp target/x86_64-unknown-linux-musl/release/scout dist/
+          cd dist && tar -czvf scout-x86_64-linux-musl.tar.gz scout
+          sha256sum scout-x86_64-linux-musl.tar.gz > scout-x86_64-linux-musl.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scout-x86_64-linux-musl
+          path: dist/scout-x86_64-linux-musl.tar.gz*
+
+  # Build aarch64 musl (Raspberry Pi 5)
+  build-aarch64-musl:
+    name: Build aarch64-musl
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-musl
+      - name: Install cross toolchain
+        run: |
+          sudo apt-get update
+          curl -sSL https://musl.cc/aarch64-linux-musl-cross.tgz | sudo tar -xz -C /opt
+          echo "/opt/aarch64-linux-musl-cross/bin" >> $GITHUB_PATH
+      - name: Configure cargo
+        run: |
+          mkdir -p .cargo
+          echo '[target.aarch64-unknown-linux-musl]' >> .cargo/config.toml
+          echo 'linker = "aarch64-linux-musl-gcc"' >> .cargo/config.toml
+      - run: cargo build -p scout-cli --target aarch64-unknown-linux-musl --release
+      - run: aarch64-linux-musl-strip target/aarch64-unknown-linux-musl/release/scout
+      - name: Create tarball
+        run: |
+          mkdir -p dist
+          cp target/aarch64-unknown-linux-musl/release/scout dist/
+          cd dist && tar -czvf scout-aarch64-linux-musl.tar.gz scout
+          sha256sum scout-aarch64-linux-musl.tar.gz > scout-aarch64-linux-musl.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scout-aarch64-linux-musl
+          path: dist/scout-aarch64-linux-musl.tar.gz*
+
+  # Build MIPS musl (OpenWRT big-endian)
+  build-mips-musl:
+    name: Build mips-musl (OpenWRT BE)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+      - name: Install cross toolchain
+        run: |
+          curl -sSL https://musl.cc/mips-linux-musl-cross.tgz | sudo tar -xz -C /opt
+          echo "/opt/mips-linux-musl-cross/bin" >> $GITHUB_PATH
+      - name: Configure cargo
+        run: |
+          mkdir -p .cargo
+          echo '[target.mips-unknown-linux-musl]' >> .cargo/config.toml
+          echo 'linker = "mips-linux-musl-gcc"' >> .cargo/config.toml
+      - name: Build
+        run: |
+          cargo +nightly build -p scout-cli \
+            --target mips-unknown-linux-musl \
+            -Z build-std=std,panic_abort \
+            --release
+      - run: mips-linux-musl-strip target/mips-unknown-linux-musl/release/scout
+      - name: Create tarball
+        run: |
+          mkdir -p dist
+          cp target/mips-unknown-linux-musl/release/scout dist/
+          cd dist && tar -czvf scout-mips-linux-musl.tar.gz scout
+          sha256sum scout-mips-linux-musl.tar.gz > scout-mips-linux-musl.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scout-mips-linux-musl
+          path: dist/scout-mips-linux-musl.tar.gz*
+
+  # Build MIPSEL musl (OpenWRT little-endian)
+  build-mipsel-musl:
+    name: Build mipsel-musl (OpenWRT LE)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+      - name: Install cross toolchain
+        run: |
+          curl -sSL https://musl.cc/mipsel-linux-musl-cross.tgz | sudo tar -xz -C /opt
+          echo "/opt/mipsel-linux-musl-cross/bin" >> $GITHUB_PATH
+      - name: Configure cargo
+        run: |
+          mkdir -p .cargo
+          echo '[target.mipsel-unknown-linux-musl]' >> .cargo/config.toml
+          echo 'linker = "mipsel-linux-musl-gcc"' >> .cargo/config.toml
+      - name: Build
+        run: |
+          cargo +nightly build -p scout-cli \
+            --target mipsel-unknown-linux-musl \
+            -Z build-std=std,panic_abort \
+            --release
+      - run: mipsel-linux-musl-strip target/mipsel-unknown-linux-musl/release/scout
+      - name: Create tarball
+        run: |
+          mkdir -p dist
+          cp target/mipsel-unknown-linux-musl/release/scout dist/
+          cd dist && tar -czvf scout-mipsel-linux-musl.tar.gz scout
+          sha256sum scout-mipsel-linux-musl.tar.gz > scout-mipsel-linux-musl.tar.gz.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scout-mipsel-linux-musl
+          path: dist/scout-mipsel-linux-musl.tar.gz*
+
+  # Create GitHub Release
+  release:
+    name: Create Release
+    needs: [build-x86_64-gnu, build-x86_64-musl, build-aarch64-musl, build-mips-musl, build-mipsel-musl]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name "*.tar.gz" -o -name "*.sha256" \) -exec cp {} release/ \;
+          ls -la release/
+
+      - name: Generate release notes
+        run: |
+          VERSION="${{ github.ref_name }}"
+          if [ -z "$VERSION" ]; then
+            VERSION="${{ inputs.tag }}"
+          fi
+          cat << 'EOF' > release_notes.md
+          ## NAVscout ${VERSION}
+
+          AI-Powered Autonomous Drone Navigation & Object Tracking for Raspberry Pi 5.
+
+          ### Downloads
+
+          | Platform | Architecture | File |
+          |----------|--------------|------|
+          | Linux | x86_64 (glibc) | `scout-x86_64-linux-gnu.tar.gz` |
+          | Linux | x86_64 (musl/static) | `scout-x86_64-linux-musl.tar.gz` |
+          | Linux | aarch64 (musl/static) | `scout-aarch64-linux-musl.tar.gz` |
+          | OpenWRT | MIPS BE | `scout-mips-linux-musl.tar.gz` |
+          | OpenWRT | MIPS LE | `scout-mipsel-linux-musl.tar.gz` |
+
+          ### Installation (Raspberry Pi 5)
+
+          ```bash
+          # Download aarch64 static binary
+          curl -LO https://github.com/QuantGenAIPhr34kW1z/navscout/releases/download/${VERSION}/scout-aarch64-linux-musl.tar.gz
+          tar -xzf scout-aarch64-linux-musl.tar.gz
+          chmod +x scout
+          sudo mv scout /usr/local/bin/
+
+          # Initialize and verify
+          scout --config /path/to/config.toml keys init
+          scout --config /path/to/config.toml doctor
+          ```
+
+          ### OpenWRT Installation
+
+          ```bash
+          # Copy to router (adjust architecture)
+          scp scout-mipsel-linux-musl.tar.gz root@192.168.1.1:/tmp/
+          ssh root@192.168.1.1 "cd /tmp && tar -xzf scout-mipsel-linux-musl.tar.gz && mv scout /usr/bin/"
+          ```
+
+          ### Checksums
+
+          All release files include SHA256 checksums (`.sha256` files).
+
+          EOF
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name || inputs.tag }}
+          name: NAVscout ${{ github.ref_name || inputs.tag }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name || inputs.tag, '-') }}
+          files: |
+            release/*.tar.gz
+            release/*.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

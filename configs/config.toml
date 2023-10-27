@@ -1,0 +1,27 @@
+[uplink]
+enable = true
+mode = "networkmanager"     # networkmanager | qmi-direct (future) | ppp (legacy)
+apn = "tele2.ru"
+pin = ""                    # optional SIM PIN
+interface_hint = "wwan0"     # optional
+telemetry_endpoint = "tls://example:443"
+
+[uplink.health]
+link_loss_grace_s = 20
+max_rtt_ms = 900
+max_loss_pct = 8
+min_rsrp_dbm = -115
+
+[uplink.spool]
+enable = true
+dir = "/var/lib/navscout/spool"
+max_mb = 256
+flush_batch = 64
+
+[gnss]
+enable = true
+source = "auto"             # auto | modemmanager | nmea-serial
+nmea_device = "/dev/ttyUSB2"
+min_sats = 9
+max_hdop = 1.6
+max_fix_age_s = 2

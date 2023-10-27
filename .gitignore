@@ -1,0 +1,55 @@
+# Rust
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.so
+*.dylib
+*.dll
+
+# Config files with secrets
+shroud.yaml
+!examples/shroud.yaml
+!examples/shroud-paranoid.yaml
+
+# Keys and certificates
+*.key
+*.pem
+*.crt
+*.p12
+keys/
+
+# Logs
+*.log
+logs/
+
+# Cache
+.cache/
+/dev/shm/shroud*
+
+# Test artifacts
+*.profraw
+*.profdata
+
+# Coverage
+coverage/
+*.gcda
+*.gcno
+
+# Benchmarks
+target/criterion/
+
+# Documentation build
+/docs/book/

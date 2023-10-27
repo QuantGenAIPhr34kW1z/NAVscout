@@ -1,0 +1,146 @@
+name: Manual Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Build target'
+        required: true
+        default: 'x86_64-gnu'
+        type: choice
+        options:
+          - x86_64-gnu
+          - x86_64-musl
+          - aarch64-musl
+          - mips-musl
+          - mipsel-musl
+          - all
+      features:
+        description: 'Features to enable (comma-separated, e.g., vision-tflite)'
+        required: false
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build ${{ inputs.target }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl,aarch64-unknown-linux-musl
+
+      - name: Install Rust nightly (for MIPS)
+        if: contains(inputs.target, 'mips') || inputs.target == 'all'
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Install cross toolchains
+        run: |
+          if [[ "${{ inputs.target }}" == "aarch64-musl" ]] || [[ "${{ inputs.target }}" == "all" ]]; then
+            curl -sSL https://musl.cc/aarch64-linux-musl-cross.tgz | sudo tar -xz -C /opt
+            echo "/opt/aarch64-linux-musl-cross/bin" >> $GITHUB_PATH
+          fi
+          if [[ "${{ inputs.target }}" == "mips-musl" ]] || [[ "${{ inputs.target }}" == "all" ]]; then
+            curl -sSL https://musl.cc/mips-linux-musl-cross.tgz | sudo tar -xz -C /opt
+            echo "/opt/mips-linux-musl-cross/bin" >> $GITHUB_PATH
+          fi
+          if [[ "${{ inputs.target }}" == "mipsel-musl" ]] || [[ "${{ inputs.target }}" == "all" ]]; then
+            curl -sSL https://musl.cc/mipsel-linux-musl-cross.tgz | sudo tar -xz -C /opt
+            echo "/opt/mipsel-linux-musl-cross/bin" >> $GITHUB_PATH
+          fi
+
+      - name: Configure cargo for cross-compilation
+        run: |
+          mkdir -p .cargo
+          cat >> .cargo/config.toml << 'EOF'
+          [target.aarch64-unknown-linux-musl]
+          linker = "aarch64-linux-musl-gcc"
+
+          [target.mips-unknown-linux-musl]
+          linker = "mips-linux-musl-gcc"
+
+          [target.mipsel-unknown-linux-musl]
+          linker = "mipsel-linux-musl-gcc"
+          EOF
+
+      - name: Set features flag
+        id: features
+        run: |
+          if [[ -n "${{ inputs.features }}" ]]; then
+            echo "flag=--features ${{ inputs.features }}" >> $GITHUB_OUTPUT
+          else
+            echo "flag=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build x86_64-gnu
+        if: inputs.target == 'x86_64-gnu' || inputs.target == 'all'
+        run: |
+          cargo build -p scout-cli --release ${{ steps.features.outputs.flag }}
+          strip target/release/scout
+          mkdir -p artifacts
+          cp target/release/scout artifacts/scout-x86_64-linux-gnu
+
+      - name: Build x86_64-musl
+        if: inputs.target == 'x86_64-musl' || inputs.target == 'all'
+        run: |
+          cargo build -p scout-cli --target x86_64-unknown-linux-musl --release ${{ steps.features.outputs.flag }}
+          strip target/x86_64-unknown-linux-musl/release/scout
+          mkdir -p artifacts
+          cp target/x86_64-unknown-linux-musl/release/scout artifacts/scout-x86_64-linux-musl
+
+      - name: Build aarch64-musl
+        if: inputs.target == 'aarch64-musl' || inputs.target == 'all'
+        run: |
+          cargo build -p scout-cli --target aarch64-unknown-linux-musl --release ${{ steps.features.outputs.flag }}
+          aarch64-linux-musl-strip target/aarch64-unknown-linux-musl/release/scout
+          mkdir -p artifacts
+          cp target/aarch64-unknown-linux-musl/release/scout artifacts/scout-aarch64-linux-musl
+
+      - name: Build mips-musl
+        if: inputs.target == 'mips-musl' || inputs.target == 'all'
+        run: |
+          cargo +nightly build -p scout-cli \
+            --target mips-unknown-linux-musl \
+            -Z build-std=std,panic_abort \
+            --release ${{ steps.features.outputs.flag }}
+          mips-linux-musl-strip target/mips-unknown-linux-musl/release/scout
+          mkdir -p artifacts
+          cp target/mips-unknown-linux-musl/release/scout artifacts/scout-mips-linux-musl
+
+      - name: Build mipsel-musl
+        if: inputs.target == 'mipsel-musl' || inputs.target == 'all'
+        run: |
+          cargo +nightly build -p scout-cli \
+            --target mipsel-unknown-linux-musl \
+            -Z build-std=std,panic_abort \
+            --release ${{ steps.features.outputs.flag }}
+          mipsel-linux-musl-strip target/mipsel-unknown-linux-musl/release/scout
+          mkdir -p artifacts
+          cp target/mipsel-unknown-linux-musl/release/scout artifacts/scout-mipsel-linux-musl
+
+      - name: Show build results
+        run: |
+          echo "=== Build artifacts ==="
+          ls -lh artifacts/
+          for f in artifacts/*; do
+            echo "--- $f ---"
+            file "$f"
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: scout-${{ inputs.target }}
+          path: artifacts/

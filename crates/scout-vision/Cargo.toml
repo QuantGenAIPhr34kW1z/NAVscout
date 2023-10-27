@@ -1,0 +1,17 @@
+[package]
+name = "scout-vision"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = []
+vision-tflite = []
+vision-coral = ["vision-tflite"]
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+image.workspace = true
+tracing.workspace = true
+tokio.workspace = true

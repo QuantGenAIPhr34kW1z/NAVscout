@@ -1,0 +1,14 @@
+[package]
+name = "scout-nav"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+tokio.workspace = true
+tokio-serial.workspace = true
+time.workspace = true
+tracing.workspace = true
+once_cell = "1"
